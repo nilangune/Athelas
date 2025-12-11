@@ -6,6 +6,31 @@ import time
 import json
 import random
 
+# Inject custom CSS for printing
+st.markdown("""
+    <style>
+    @media print {
+        /* Hide the sidebar completely */
+        [data-testid="stSidebar"] {
+            display: none !important;
+        }
+        
+        /* Optional: Hide the top header bar (with the running man/deploy button) */
+        header {
+            display: none !important;
+        }
+
+        /* Expand the main content to full width to use the empty space */
+        .main .block-container {
+            max-width: 100% !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+        }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+
 # --- Configuration & Constants ---
 st.set_page_config(page_title="Athelas | KP Care at Home", page_icon="🌿", layout="wide")
 
@@ -174,7 +199,7 @@ def init_db():
 def safe_date(val):
     if pd.isna(val) or val == "" or val is None: return None
     try: return datetime.strptime(str(val).split()[0], '%Y-%m-%d')
-    except: return None # Fixed: Keep silent or print if needed, returning None is safe here
+    except: return None
 
 def generate_next_project_code(team_code, type_code, year):
     conn = get_db_connection()
@@ -502,26 +527,16 @@ def render_project_overview_table(active_projs):
         st.info("No active projects to display.")
         return
 
-    # We need to get status info for each project to build the table
     overview_data = []
     
     for _, proj in active_projs.iterrows():
         latest_rep = get_latest_status_report(proj['id'])
         
-        # Determine Status Color/Emoji
         status_val = latest_rep['health_overall'] if latest_rep is not None else "Not Started"
         status_icon = HEALTH_COLORS.get(status_val, "⚪")
         
-        # Determine Frequency (Placeholder logic - could be a field later)
-        frequency = "Biweekly" # Default per your image example
+        frequency = "Biweekly" 
         
-        # Business Process Owners Checklist (Simulated based on your image structure)
-        # In a real app, you might want specific boolean fields for these departments.
-        # For now, we'll check if the 'business_owner' field contains keywords or just leave blank/checked based on team?
-        # Let's keep it simple: The 'Business Process Owner' column from the project is shown, 
-        # plus we can show the 'Team' (e.g., HOS, BTS) as "Project Team".
-        
-        # Team Mapping (Project Code prefix -> Team Name)
         team_code = proj['project_code'].split('-')[0] if '-' in proj['project_code'] else "UNK"
         team_name = TEAMS.get(team_code, team_code)
         
@@ -529,7 +544,7 @@ def render_project_overview_table(active_projs):
             "Alert": status_icon,
             "Project Name": proj['project_name'],
             "Project Lead": proj['project_manager'],
-            "Project Team": team_name, # Derived from code
+            "Project Team": team_name, 
             "Status": status_val,
             "Frequency": frequency,
             "Project ETC": proj['target_end_date']
@@ -538,7 +553,6 @@ def render_project_overview_table(active_projs):
         
     df_overview = pd.DataFrame(overview_data)
     
-    # Styled dataframe
     st.dataframe(
         df_overview,
         column_config={
@@ -610,7 +624,7 @@ def incident_form(key_prefix, d=None):
         if not m.empty: pid = int(m.iloc[0]['id'])
         
     return {
-        'inc_number': inc, 'title': tit, 'status': stat, 'mrn': mrn, 'issue_type': iss, # Fixed NameError issue_type -> iss
+        'inc_number': inc, 'title': tit, 'status': stat, 'mrn': mrn, 'issue_type': iss, 
         'cah_manager': mgr, 'assigned_bts_member': abts if abts != "Unassigned" else "", 
         'affected_user': aff, 'ssd_it_assigned_to': ssd,
         'date_ticket_created': dt1, 'date_received_bts': dt2, 'date_escalated_dt': dt3, 'date_reported_epic': dt4,
@@ -683,46 +697,23 @@ def landing_page():
     # User Selection Logic
     all_u = get_users(active_only=True)
     
-    # Determine current state to pre-fill
     current_user_name = ""
-    current_team_index = 0
-    
     if st.session_state.curr_user_id:
         user_row = all_u[all_u['id'] == st.session_state.curr_user_id]
         if not user_row.empty:
             current_user_name = user_row.iloc[0]['name']
-            current_user_team = user_row.iloc[0]['team']
-            team_keys = list(TEAMS.keys())
-            if current_user_team in team_keys:
-                # +1 because of "All Teams" option
-                current_team_index = team_keys.index(current_user_team) + 1
 
-    # Container for User Selection
     with st.container():
         c_team, c_user = st.columns(2)
-        
         with c_team:
-            # Team Filter
-            sel_team_display = st.selectbox(
-                "1. Filter by Team", 
-                ["All Teams"] + list(TEAMS.keys()), 
-                # Optional: pre-select team if user is logged in? 
-                # For now, let's default to 0 (All Teams) to avoid confusion unless we want to enforce the filter.
-                # If we want to enforce the filter based on current user, we can use `index=current_team_index`.
-                # Let's keep it simple:
-                index=0 
-            )
-            
+            sel_team_display = st.selectbox("1. Filter by Team", ["All Teams"] + list(TEAMS.keys()), index=0)
         with c_user:
-            # Filter the user list
             if sel_team_display != "All Teams":
                 filtered_users = all_u[all_u['team'] == sel_team_display]
             else:
                 filtered_users = all_u
             
             user_map = {u['name']: u['id'] for _, u in filtered_users.iterrows()}
-            
-            # Check if current selected user is in the filtered list
             curr_name_in_list = current_user_name if current_user_name in user_map else ""
             
             sel_user = st.selectbox(
@@ -738,7 +729,6 @@ def landing_page():
 
     st.markdown("---")
     
-    # Primary Buttons (Incidents & Projects)
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("### ⛑️ Incident Desk")
@@ -754,9 +744,8 @@ def landing_page():
             st.session_state.page = "projects"
             st.rerun()
             
-    # Admin at bottom, smaller
     st.markdown("<br><br>", unsafe_allow_html=True)
-    c_left, c_admin, c_right = st.columns([2, 1, 2])
+    _, c_admin, _ = st.columns([2, 1, 2])
     with c_admin:
         if st.button("🔒 System Admin", use_container_width=True):
             st.session_state.page = "admin_auth"
@@ -874,7 +863,6 @@ def route_projects():
     elif menu == "Manage Projects":
         st.title("📁 Manage Projects")
         
-        # Selection
         projs = get_projects()
         if projs.empty:
             st.info("No projects.")
@@ -886,7 +874,6 @@ def route_projects():
                         else: create_project(pd_data); st.success("Created"); st.rerun()
         else:
             c_sel, c_new = st.columns([3, 1])
-            # FIX: Added key="mp_selector" to project selection to maintain state across tabs
             pid = c_sel.selectbox("Select Project", projs['id'].tolist(), format_func=lambda x: f"{projs[projs['id']==x].iloc[0]['project_code']} - {projs[projs['id']==x].iloc[0]['project_name']}", key="mp_selector")
             
             if c_new.button("➕ Create New"):
@@ -904,31 +891,26 @@ def route_projects():
                         st.session_state.creating_project = False; st.rerun()
                 st.markdown("---")
 
-            # Project View
             proj = get_project(pid)
             
-            # TABS
             pt1, pt2, pt3, pt4 = st.tabs(["Details", "Schedule (Milestones)", "Status Reports", "History"])
             
-            with pt1: # Details
-                # FIX: Use dynamic key based on PID so form refreshes when project changes
+            with pt1: 
                 with st.form(f"ep_{pid}"):
                     upd = project_form(f"ep_{pid}", proj)
                     if st.form_submit_button("Update", type="primary"):
                         update_project(pid, upd, "System"); st.success("Updated"); st.rerun()
                 if st.button("Delete Project"): delete_project(pid); st.success("Deleted"); st.rerun()
 
-            with pt2: # Milestones
+            with pt2: 
                 st.markdown("### 📅 Project Schedule")
                 milestones = get_milestones(pid)
                 if not milestones.empty:
-                    # Display Table
                     st.dataframe(milestones[['group_name', 'milestone_name', 'percent_complete', 'start_date', 'end_date', 'status', 'comments']], hide_index=True, use_container_width=True)
                 
                 with st.expander("➕ Add / Edit Milestone"):
                     ms_id = None
                     if not milestones.empty:
-                        # FIX: Added dynamic key for milestone selector
                         edit_ms = st.selectbox("Edit Existing?", ["(New Milestone)"] + milestones['milestone_name'].tolist(), key=f"ms_sel_{pid}")
                         if edit_ms != "(New Milestone)":
                             ms_row = milestones[milestones['milestone_name'] == edit_ms].iloc[0]
@@ -937,7 +919,6 @@ def route_projects():
                         else: d_ms = {}
                     else: d_ms = {}
 
-                    # FIX: Dynamic form key for milestones to prevent state sticking
                     with st.form(f"ms_form_{pid}"):
                         mc1, mc2 = st.columns(2)
                         grp = mc1.text_input("Group/Phase", d_ms.get('group_name', ''))
@@ -964,12 +945,9 @@ def route_projects():
                         if st.button("Delete Milestone", key=f"del_ms_{ms_id}"):
                             delete_milestone(ms_id); st.success("Deleted"); st.rerun()
 
-            with pt3: # Status Reports
+            with pt3: 
                 st.markdown("### 📢 Status Reporting")
-                
-                # View Latest Report in "One Pager" Style
                 latest = get_latest_status_report(pid)
-                
                 if latest is not None:
                     render_status_card(proj, latest, get_milestones(pid))
                 
@@ -1021,7 +999,6 @@ def route_projects():
             render_project_overview_table(active_projs)
         
         with tabs[1]:
-            # --- Executive Status Rollup ---
             st.markdown("### 📄 Executive Status Briefing")
             st.caption("Detailed vertical rollup of latest status reports for all active projects.")
             
@@ -1030,28 +1007,23 @@ def route_projects():
                 st.markdown(f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M')}")
                 st.markdown("---")
                 
-                # Fetch all active projects
                 all_projs = get_projects()
                 active_projs = all_projs[all_projs['status'] == 'Active']
                 
                 if active_projs.empty:
                     st.warning("No active projects found.")
                 else:
-                    # ADDED: Render Overview Table at the top
                     st.markdown("### 📋 High-Level Overview")
                     render_project_overview_table(active_projs)
                     st.markdown("---")
                     st.markdown("<br>", unsafe_allow_html=True)
 
                     for _, proj in active_projs.iterrows():
-                        # Fetch latest report
                         latest_rep = get_latest_status_report(proj['id'])
                         if latest_rep is not None:
-                            # Fetch milestones for context
                             ms = get_milestones(proj['id'])
-                            # Reuse visualizer
                             render_status_card(proj, latest_rep, ms)
-                            st.markdown("<br>", unsafe_allow_html=True) # Spacing between cards
+                            st.markdown("<br>", unsafe_allow_html=True) 
                         else:
                             pass
                 st.success("End of Report")
@@ -1127,11 +1099,9 @@ def route_admin_panel():
     elif menu == "Imports/Exports":
         st.title("📤 Data Tools")
         
-        # Project Import
         st.subheader("Import Projects (CSV)")
         st.caption("Fields: project_name, project_code, status, project_manager, budget_hours, assigned_members")
         
-        # Generate Template for Projects
         proj_template_cols = ['project_name', 'project_code', 'status', 'project_manager', 'budget_hours', 'priority', 'assigned_members', 'start_date', 'target_end_date', 'business_owner', 'executive_sponsor']
         proj_temp_df = pd.DataFrame(columns=proj_template_cols)
         st.download_button("Download Project Template", proj_temp_df.to_csv(index=False).encode('utf-8'), "project_import_template.csv", "text/csv")
@@ -1156,7 +1126,6 @@ def route_admin_panel():
         st.markdown("---")
         st.subheader("Import Incidents (CSV)")
         
-        # Incident Template
         inc_template_cols = ['inc_number', 'title', 'description', 'status', 'priority', 'notes', 'cah_manager', 'assigned_bts_member', 'affected_user', 'ssd_it_assigned_to', 'source_category', 'specific_source', 'issue_type', 'sn_comments', 'bts_notes', 'mrn', 'workaround', 'resolution', 'date_ticket_created', 'date_received_bts', 'date_escalated_dt', 'date_reported_epic']
         inc_temp_df = pd.DataFrame(columns=inc_template_cols)
         st.download_button("Download Incident Template", inc_temp_df.to_csv(index=False).encode('utf-8'), "incident_import_template.csv", "text/csv")
@@ -1178,29 +1147,23 @@ def route_admin_panel():
         
         c1,c2,c3 = st.columns(3)
         with c1:
-            # Incidents
             inc_csv = get_incidents().to_csv(index=False).encode('utf-8')
             st.download_button("📥 Incidents", inc_csv, "incidents.csv", use_container_width=True)
             
-            # Projects
             proj_df = get_projects()
-            # Convert list back to string for CSV
             if not proj_df.empty:
                 proj_df['assigned_members'] = proj_df['assigned_members'].apply(lambda x: ", ".join(x) if isinstance(x, list) else "")
             proj_csv = proj_df.to_csv(index=False).encode('utf-8')
             st.download_button("📥 Projects", proj_csv, "projects.csv", use_container_width=True)
 
         with c2:
-            # Time Logs
             log_csv = get_time_logs().to_csv(index=False).encode('utf-8')
             st.download_button("📥 Time Logs", log_csv, "timelogs.csv", use_container_width=True)
             
-            # Users
             users_csv = get_users(active_only=False).to_csv(index=False).encode('utf-8')
             st.download_button("📥 Users", users_csv, "users.csv", use_container_width=True)
 
         with c3:
-            # History
             conn = get_db_connection()
             hist_df = pd.read_sql_query("SELECT * FROM project_updates", conn)
             conn.close()
@@ -1212,7 +1175,7 @@ def route_admin_panel():
 # --- MAIN ---
 def main():
     init_db()
-    if 'page' not in st.session_state: st.se    ssion_state.page = "home"
+    if 'page' not in st.session_state: st.session_state.page = "home"
     if 'curr_user_id' not in st.session_state: st.session_state.curr_user_id = None
     if 'dash_edit_id' not in st.session_state: st.session_state.dash_edit_id = None
     if 'inc_edit_id' not in st.session_state: st.session_state.inc_edit_id = None
