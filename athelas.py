@@ -26,6 +26,40 @@ st.markdown("""
             padding-left: 1rem !important;
             padding-right: 1rem !important;
         }
+        
+        /* Prevent page breaks inside tables and dataframes */
+        [data-testid="stDataFrame"],
+        [data-testid="stTable"],
+        table {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+        }
+        
+        /* Keep the overview table together on one page */
+        .element-container:has([data-testid="stDataFrame"]) {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+        }
+        
+        /* Force page break before each status card */
+        .project-status-card {
+            page-break-before: always !important;
+            page-break-inside: avoid !important;
+            break-before: page !important;
+            break-inside: avoid !important;
+        }
+        
+        /* Keep status card contents together */
+        [data-testid="stContainer"] {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+        }
+        
+        /* Prevent orphaned headers */
+        h3, h4 {
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+        }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -473,6 +507,9 @@ def update_bulk_incidents(ids, updates):
 
 # --- VISUALIZERS ---
 def render_status_card(proj, latest, milestones):
+    # Add wrapper div with class for print page breaks
+    st.markdown('<div class="project-status-card">', unsafe_allow_html=True)
+    
     with st.container(border=True):
         st.subheader(f"{proj['project_name']} ({proj['project_code']})")
         # Header Stats
@@ -520,6 +557,9 @@ def render_status_card(proj, latest, milestones):
             st.write(latest['next_steps'] or "-")
             
         st.caption(f"Report Date: {latest['report_date']} | Next Report: {latest['next_report_date']}")
+    
+    # Close the wrapper div
+    st.markdown('</div>', unsafe_allow_html=True)
 
 def render_project_overview_table(active_projs):
     """Renders the tabular view of all active projects for the Overview tab."""
